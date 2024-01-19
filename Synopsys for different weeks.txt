@@ -1,0 +1,9 @@
+Week-8: 
+>Yarn Architecture - Resource Manager & Node Manager
+>Differences between Namenode, Datanode & Resource Manager, Node Manager
+>Different ways of accessing columns
+>Aggregate Functions
+>Grouping aggregations
+>Windowing aggregations
+>Windowing Functions
+>Pivot Table

@@ -1,0 +1,415 @@
+RDD's:
+=====
+from pyspark.sql import SparkSession
+import getpass
+username = getpass.getuser()
+spark = SparkSession.\
+        builder.\
+        config('spark.ui.port','0').\
+        config("spark.sql.warehouse.dir", f"/user/{username}/warehouse").\
+        enableHiveSupport().\
+        master('yarn').\
+        getOrCreate()
+
+.appName("shyam_cache")\
+
+Turning off Dynamic allocation
+==============================
+from pyspark.sql import SparkSession
+import getpass
+username = getpass.getuser()
+spark = SparkSession\
+.builder\
+.config("spark.shuffle.useOldFetchProtocol","true")\
+.config("spark.dynamicAllocation.enabled","false")\
+.config("spark.executor.instances","2")\
+.config("spark.executor.cores","2")\
+.config("spark.executor.memory","2g")\
+.config("spark.sql.warehouse.dir",f"/user/{username}/warehouse")\
+.enableHiveSupport()\
+.master("yarn")\
+.getOrCreate()
+
+
+orders_rdd = spark.sparkContext.textFile("/public/trendytech/retail_db/orders/*")
+orders_rdd.take(5)
+
+['1,2013-07-25 00:00:00.0,11599,CLOSED',
+ '2,2013-07-25 00:00:00.0,256,PENDING_PAYMENT',
+ '3,2013-07-25 00:00:00.0,12111,COMPLETE',
+ '4,2013-07-25 00:00:00.0,8827,CLOSED',
+ '5,2013-07-25 00:00:00.0,11318,COMPLETE']
+
+mapped_rdd = orders_rdd.map(lambda x: (x.split(",")[3],1))
+reduced_rdd = mapped_rdd.reduceByKey(lambda x,y:x+y)
+reduced_sorted = reduced_rdd.sortBy(lambda x: x[1])
+reduced_sorted1 = reduced_rdd.sortBy(lambda x:x[1], False)
+reduced_sorted1.collect()
+
+[('COMPLETE', 22899),
+ ('PENDING_PAYMENT', 15030),
+ ('PROCESSING', 8275),
+ ('PENDING', 7610),
+ ('CLOSED', 7556),
+ ('ON_HOLD', 3798),
+ ('SUSPECTED_FRAUD', 1558),
+ ('CANCELED', 1428),
+ ('PAYMENT_REVIEW', 729)]
+
+orders_filtered = orders_base.filter(lambda x:x.split(",")[3] != "PENDING_PAYMENT")		//FILTER
+result = orders_reduced.filter(lambda x: int(x[0])<501)
+
+words = ("big","Data","Is","SUPER","Interesting","BIG","data","IS","A","Trending","technology")
+words_rdd = spark.sparkContext.parallelize(words)
+
+result = spark. \
+sparkContext. \
+parallelize(words). \
+map(lambda x:x.lower()). \
+map(lambda x:(x,1)). \
+reduceByKey(lambda x,y:x+y)
+result.collect()
+
+
+wrods.getNumPartitions()  //9
+
+repartitioned_orders = orders_base.repartition(15)
+repartitioned_orders.getNumPartitions()	//15
+
+new_repartitioned_orders = orders_base.repartition(4)
+new_repartitioned_orders.getNumPartitions()   //4
+
+new_rdd = orders_base.coalesce(30)
+new_rdd.getNumPartitions()    //9
+
+new_rdd1 = orders_base.coalesce(5)
+new_rdd1.getNumPartitions()   //5
+
+
+
+
+DATAFRAMES & SPARK SQL:
+======================
+orders_df = spark.read\
+		.format("csv")\
+		.option("header", "true")\
+		.option("inferSchema", "true")\
+		.load("/public/trendytech/orders_wh/*")
+
+orders_df2 = spark.read\
+		.option("header","true")\
+		.option("inferSchema","true")\
+		.csv("/public/trendytech/orders_wh/*")
+
+orders_df1 = spark.read\
+		.csv("/public/trendytech/orders_wh/*", header="true", inferSchema="true")
+
+orders_parquet_df = spark.read\
+			.parquet("/public/trendytech/datasets/ordersparquet")
+
+
+.option("samplingRatio",.01)\		//It will scan only 10% of schema
+.schema(orders_schema)\			//Instead of header & inferSchema options
+.option("dateFormat","MM-dd-yyyy")\
+.option("mode","failfast")\		//default is permissive
+.option("mode","dropmalformed")\	//default is permissive
+
+
+	    df1 = spark.sql("select * from itv007408_retail.orders_ext")
+	    df2 = spark.table("itv007408_retail.orders_ext")
+     ordersdf = spark.read.table("orders")		// for temp view
+	    df3 = spark.range(5)
+orders_raw_df = spark.createDataFrame(orders_list)
+	     df = spark.createDataFrame(orders_list,orders_schema)
+	    df3 = spark.createDataFrame(orders_list).toDF('order_id','order_date','cust_id','order_status')
+	    df4 = spark.createDataFrame(orders_list).toDF('order_id long','order_date string','cust_id int','order_status string')
+	     df = spark.createDataFrame(new_orders_rdd,orders_schema)
+	new_df1 = spark.createDataFrame(new_orders_rdd).toDF('order_id','order_date','cust_id','order_status')
+	new_df2 = new_orders_rdd.toDF(orders_schema)
+
+
+
+
+orders_schema = 'order_id long, order_date date, cust_id long, order_status long'
+
+oders_schema_struct = StructType([
+    StructField("order_id",LongType()),
+    StructField("order_date",DateType()),
+    StructField("cust_id", IntegerType()),
+    StructField("order_status", StringType())
+])
+
+
+transformed_df1 = orders_df.withColumnRenamed("order_status", "Status")
+transformed_df2 = transformed_df1.withColumn("order_date_new", to_timestamp("order_date"))
+
+filtered_df1 = orders_df.where("customer_id=11599")
+filtered_df2 = orders_df.filter("customer_id=11599")
+
+filtered_df1.show(2)
+
+--------+--------------------+-----------+------------+
+|order_id|          order_date|customer_id|order_status|
++--------+--------------------+-----------+------------+
+|       1|2013-07-25 00:00:...|      11599|      CLOSED|
+|   11397|2013-10-03 00:00:...|      11599|    COMPLETE|
++--------+--------------------+-----------+------------+
+
+filtered_df1.show(2,truncate=False)
+
++--------+---------------------+-----------+------------+
+|order_id|order_date           |customer_id|order_status|
++--------+---------------------+-----------+------------+
+|1       |2013-07-25 00:00:00.0|11599      |CLOSED      |
+|11397   |2013-10-03 00:00:00.0|11599      |COMPLETE    |
++--------+---------------------+-----------+------------+
+
+transformed_df2.printSchema()
+
+root
+ |-- order_id: integer (nullable = true)
+ |-- order_date: string (nullable = true)
+ |-- customer_id: integer (nullable = true)
+ |-- Status: string (nullable = true)
+ |-- order_date_new: timestamp (nullable = true)
+
+orders_df.createOrReplaceTempView("orders")
+ordersdf.createOrReplaceGlobalTempView("orders1")
+
+
+
+spark.sql("show databases").show(5)
+spark.sql("create database if not exists itv007408_retail")
+spark.sql("show databases").filter("namespace like 'retail%'").show()
+spark.sql("show databases").filter("namespace like 'itv007408%'").show()
+spark.sql("use retail")
+spark.sql("show tables").show()
+spark.sql("use itv007408_retail")
+spark.sql("show tables").show()
+
+Managed Table
+spark.sql("create table itv007408_retail.orders(order_id integer, order_date string, customer_id integer, order_status string)")
+spark.sql("insert into itv007408_retail.orders select * from orders")
+spark.sql("select * from itv007408_retail.orders limit 5").show()
+spark.sql("describe table itv007408_retail.orders").show()
+spark.sql("describe extended itv007408_retail.orders").show()
+spark.sql("drop table itv007408_retail.orders")
+
+External Table
+spark.sql("create table itv007408_retail.orders_ext(order_id integer, order_date string, customer_id integer, order_status string) using csv location '/public/trendytech/retail_db/orders'")
+spark.sql("describe extended itv007408_retail.orders_ext").show()
+
+spark.sql("truncate table itv007408_retail.orders_ext")  //We can truncate managed table, but not a external table
+spark.sql("insert into table itv007408_retail.orders_ext values(1111,'12-02-2023',2222,'CLOSED')")
+
+
+result = orders_df.groupBy("customer_id").count().sort("count",ascending=False)
+result11 = spark.sql("select customer_id, count(order_id) as count from orders group by customer_id order by count desc limit 15")
+
+results21 = orders_df.groupBy("order_status").count()
+results22 = spark.sql("select order_status, count(order_id) as count from orders group by order_status")
+
+results31 = orders_df.select("customer_id").distinct().count()
+results32 = spark.sql("select count(distinct(customer_id)) as active_customers from orders")
+
+results41 = orders_df.filter("order_status='CLOSED'").groupBy("customer_id").count().sort("count",ascending=False)
+results42 = spark.sql("select customer_id, count(order_id) as count from orders where order_status='CLOSED' group by customer_id order by count desc")
+
+where,filter
+groupBy
+count
+sort
+select
+selectExpr
+
+
+HANDLING DATE:
+=============
+spark default date format is yyyy-MM-dd
+But the dataset date format is MM-dd-yyyy hence you will get an error while trying to print
+
+1.Formatting the date while loading the data frame itself
+.option("dateFormat","MM-dd-yyyy")\
+
+2.Initially load the date column as string and later apply the transformation and convert the datatype of this column from string to date
+df1 = df.withColumn("order_date", to_date("order_date","MM-dd-yyyy"))
+
+
+df1.select("*", expr("product_price * quantity as subtotal")).show(5)
+df1.selectExpr("*","product_price * quantity as subtotal").show(5)
+df2 = df1.withColumn("product_price",expr("product_price * 1.2"))
+df.select("id").distinct().show()
+df.dropDuplicates().show()		//This is exactly same as distinct
+df.dropDuplicates(["name","age"]).show()
+df.dropDuplicates(["id"]).show()
+
+
+CACHE:
+======
+cached_df = orders_df.cache()
+
+
+spark.sql(create database caching_demo_db;) // Creating Database
+
+orders_df.write.format(csv).saveAsTable(caching_demo_db.orders1) // Storing the Dataframe results into a Managed Spark table on Disk. Data is residing in the path - /user/{username}/warehouse and Metadata is present in a Database
+
+spark.sql(select count(*) from caching_demo_db.orders1).show() //Invoking count(*) to check the no.of records.Since the data is not cached here, it is scanned from disk
+
+spark.sql(cache table caching_demo_db.orders1)  //Caching the data. In case of Spark SQL caching is not lazy unlike as in RDDs and Dataframes.
+
+spark.sql(uncache table caching_demo_db.orders1) //Un-Caching the data. On uncache, the data will no longer be in memory and it has to be scanned from disk. The data locality will change to NODE_LOCAL from PROCESS_LOCAL
+
+spark.sql(cache lazy table caching_demo_db.orders1)  //Cache is eager in case of Spark SQL. In order to make it Lazy, add a lazy keyword
+
+Note: Whenever the data changes (Ex- New record inserted), spark is smart to refresh the cache and thereby display the right results
+
+1. spark.sql(“clear cache”) //clears all the cached objects of the session.
+2. spark.sql(“uncache table <tableName>”) //clears only the specified table.
+3. spark.catalog.clearCache()
+
+spark.sql(“refresh table <table-name>”)
+orders_df.persist(StorageLevel(True,True,False,True,1))
+orders_df.unpersist()
+
+orders_df.persist(StorageLevel(True,False,False,True,1))     OR    orders_df.persist(StorageLevel.DISK_ONLY)
+orders_df.persist(StorageLevel(True,True,False,True,1))	 OR    orders_df.persist(StorageLevel.MEMORY_AND_DISK)
+orders_df.persist(StorageLevel(True,True,False,False,1))	 OR    orders_df.persist(StorageLevel.MEMORY_AND_DISK_SER)
+
+
+ACCESSING COLUMNS:
+=================
+orders_df.select('*').show(2)
+orders_df.select("order_id","order_date").show(2)
+orders_df.select("order_id", 
+                 orders_df.order_date, 
+                 orders_df["order_date"], 
+                 column("cust_id"),
+                 col("cust_id"),
+                 expr("order_status")).show(2)
+orders_df.select("order_id", 
+                 "cust_id", 
+                 expr("cust_id+1 as new_cust_id")).show(2)
+orders_df.select("order_id", 
+                 orders_df.order_date,
+                 orders_df["order_date"],
+                 column("cust_id"),
+                 col("cust_id"),
+                 expr("order_status"))\
+         .where(col("order_status").like("PENDING%")).show(5)
+orders_df.select("order_id", 
+                 orders_df.order_date,
+                 orders_df["order_date"],
+                 column("cust_id"),
+                 col("cust_id"),
+                 expr("order_status"))\
+         .where("order_status like 'PENDING%'").show(5)
+
+
+
+
+orders_df.select(count("*").alias("row_count"),
+                 countDistinct("invoiceno").alias("unique_invoice"),
+                 sum("quantity").alias("total_quantity"),
+                 avg("unitprice").alias('avg_price')).show()
+orders_df.selectExpr("count(*) as row_count",
+                     "count(distinct(invoiceno)) as unique_invoice",
+                     "sum(quantity) as total_quantity",
+                     "avg(unitprice) as avg_price").show()
+spark.sql("""select count(*) as row_count,
+                    count(distinct(invoiceno)) as unique_invoice,
+                    sum(quantity) as total_quantity,
+                    avg(unitprice) as avg_price
+             from orders""").show()
+
+
+
+summary_df = orders_df\
+.groupBy("country","invoiceno")\
+.agg(sum("quantity").alias("total_quantity"),
+     sum(expr("quantity*unitprice")).alias("invoice_value"))\
+.sort("invoiceno")
+
+summary_df1 = orders_df\
+.groupBy("country","invoiceno")\
+.agg(expr("sum(quantity) as total_quantity"),
+     expr("sum(quantity*unitprice) as invoice_value"))\
+.sort("invoiceno")
+
+spark.sql("""select country,
+                    invoiceno,
+                    sum(quantity) as total_quantity,
+                    sum(quantity*unitprice) as invoice_value
+             from orders
+             group by country,invoiceno
+             order by invoiceno""").show(5)
+
+from pyspark.sql import *
+
+mywindow = Window.partitionBy("country")\
+.orderBy("weeknum")\
+.rowsBetween(Window.unboundedPreceding, Window.currentRow)
+
+result_df = orders_df.withColumn("running_total",sum("invoicevalue").over(mywindow))
+
+
+mywindow1 = Window.partitionBy("country")\
+.orderBy(desc("invoicevalue"))
+
+result_df1 = orders_df.withColumn("rank",rank().over(mywindow1))
+result_df2 = orders_df.withColumn("rank(desnse_rank)",dense_rank().over(mywindow1))
+result_df3 = orders_df.withColumn("rank(row_number)", row_number().over(mywindow))
+result_df4 = orders_df.withColumn("previous_week", lag("invoicevalue").over(mywindow3))
+result_df5 = orders_df.withColumn("next week", lead("invoicevalue").over(mywindow3))
+
+mywindow4 = Window.partitionBy("country")
+orders_df.withColumn("total_invoice_value", sum("invoicevalue").over(mywindow4))
+
+
+spark.sql("""select loglevel,
+                    date_format(logtime, 'MMMM') as month
+             from serverlogs1""")\
+     .groupBy("loglevel")\
+     .pivot("month")\
+     .count()\
+     .show()
+
+WRITER API:
+==========
+orders_df.write\
+.format("csv")\
+.mode("overwrite")\
+.option("path", "/user/itv007408/week9/SparkWriterDemo1")\
+.save()
+
+.mode("append")\
+.mode("ignore")\
+.mode("errorifexists")\
+
+
+orders_df.write\
+.format("csv")\
+.mode("overwrite")\
+.partitionBy("order_status")\
+.option("path","/user/itv007408/week9/partition_demo_output1")\
+.save()
+
+customer_final_df.write\
+.format("csv")\
+.mode("overwrite")\
+.partitionBy("cust_state", "cust_city")\
+.option("path", "/user/itv007408/partition_demo_output2")\
+.save()
+
+#In case of bucketig we have to create a managed spark table
+spark.sql("create database itv007408_bucketingdb")
+
+customer_final_df.write\
+.format("parquet")\
+.mode("overwrite")\
+.bucketBy(4, "cust_id")\
+.saveAsTable("itv007408_bucketingdb.cust_new")
+
+
+orders_df.groupBy("order_status").count().write.format("noop").mode("overwrite").save()
+orders_df.join(customers_df, orders_df.cust_id == customers_df.customerid, "inner").write.format("noop").mode("overwrite").save()
+

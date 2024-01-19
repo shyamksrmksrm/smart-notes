@@ -1,0 +1,17 @@
+spark.SparkContext.defaultMinPartitions
+spark.SparkContext.defaultParallelism
+spark.conf.get("spark.sql.files.maxPartitionBytes")
+spark.conf.get("spark.sql.files.openCostInBytes")
+spark.conf.set('spark.sql.autoBroadcastJoinThreshold','-1')
+spark.conf.get("spark.sql.adaptive.enabled")
+spark.conf.set("spark.sql.adaptive.enabled",True)
+
+
+from pyspark.sql.types import *
+from pyspark.sql.functions import to_date
+from pyspark.sql.functions import expr
+from pyspark.storagelevel import StorageLevel
+
+
+
+

@@ -1,0 +1,186 @@
+1.Data skipping by stats
+2.Delta cache
+3.Optimize
+4.Zorder by
+5.Vaccum
+6.Optimize writes, autoCompact
+7.Photon accelerator
+
+
+1.Data skipping by stats
+2.Delta cache
+	1. Use Specific Machines (like Delta Accelerated VMs)
+	2. Set a property to enable delta cache in case of a normal cluster.
+		spark.conf.get(“spark.databricks.io.cache.enabled”)
+		spark.conf.set(“spark.databricks.io.cache.enabled”, “true”)
+	3. Can be manually enabled using the cache keyword before
+	executing the query
+
+		[%sql
+		Cache
+		Select * from <Database-Name.Table-Name>
+		]
+
+3.Optimize ( to merge the small files into large files )
+	%sql
+	OPTIMIZE <Database-name.Table-name>
+4.Zorder by
+	%sql
+	OPTIMIZE <Database-name.Table-name> zorder by <Column-name>
+5.Vaccum
+	%sql
+	VACUUM <Database-name.Table-name> RETAIN 1 HOURS DRY RUN
+	(Since the retain hours is less than the default value of 7 days, we need to also set a databricks property value as below)
+	set spark.databricks.delta.retentionDurationCheck.enabled = false
+
+6.Optimize writes, autoCompact
+	TBLPROPERTIES ( delta.autoOptimize.optimizeWrite = true )
+	TBLPROPERTIES ( delta.autoOptimize.autoCompact = true )
+7.Photon accelerator
+
+
+
+
+There are 3 stages to Delta Architecture - Bronze, Silver & Gold. Data rolls up
+from Bronze to Gold layer with enhancements. ( Bronze -> Silver -> Gold )
+
+Change Data Feed:
+	TBLPROPERTIES (delta.enableChangeDataFeed = true)
+
+1. While creating the table
+	create table orders(
+	order_id int,
+	order_date string,
+	customer_id int,
+	order_status string
+	)
+	using delta
+	TBLPROPERTIES (delta.enableChangeDataFeed = true)
+2. For existing table with Change Data Feed disabled
+	alter table <table-name> set TBLPROPERTIES(delta.enableChangeDataFeed = true)
+3. To enable the change data feed by default for all the tables that will be created subsequently.
+	set spark.databricks.delta.properties.defaults.enableChangeDataFeed = true
+
+describe history orders
+select * from table_changes('orders',1)		\\table_changes('table_name',version)
+delete from orders where order_id = 3
+select * from table_changes('orders',2)
+update orders set order_status = 'COMPLETE' where order_id = 4
+select * from table_changes('orders',3)
+
+you can see one addition folder _change_data (this wont keep the insert information)
+changes are logged in _change_data (update,delete,merge)
+
+what is the usecase for this CDC or change data feed?
+1. auditing
+2. incremental merges among table
+
+
+create database retaildb
+
+create table retaildb.orders_bronze
+(
+order_id int,
+order_date string,
+customer_id int,
+order_status string,
+filename string,
+createdon timestamp
+)
+using delta
+location "dbfs:/FileStore/data/orders_bronze.delta"
+partitioned by (order_status)
+TBLPROPERTIES (delta.enableChangeDataFeed = true)
+
+
+
+create table retaildb.orders_silver
+(
+order_id int,
+order_date date,
+customer_id int,
+order_status string,
+order_year int GENERATED ALWAYS AS (YEAR(order_date)),
+order_month int GENERATED ALWAYS AS (MONTH(order_date)),
+createdon timestamp,
+modifiedon timestamp
+)
+using delta
+location "dbfs:/FileStore/data/orders_silver.delta"
+partitioned by (order_status)
+TBLPROPERTIES (delta.enableChangeDataFeed = true)
+
+
+
+create table retaildb.orders_gold
+(
+customer_id int,
+order_status string,
+order_year int,
+num_orders int
+)
+using delta
+location "dbfs:/FileStore/data/orders_gold.delta"
+TBLPROPERTIES (delta.enableChangeDataFeed = true)
+
+
+
+copy into retaildb.orders_bronze from (
+select order_id::int,
+order_date::string,
+customer_id::int,
+order_status::string,
+INPUT_FILE_NAME() as filename,
+CURRENT_TIMESTAMP() as createdon
+FROM 'dbfs:/FileStore/raw'
+)
+fileformat = CSV
+format_options('header' = 'true')
+
+
+68883
+if you try to run the above command again it wont impact..
+
+
+
+select * from retaildb.orders_bronze
+describe history retaildb.orders_bronze
+select * from table_changes ('retaildb.orders_bronze',1)
+
+
+%sql
+create or replace temporary view orders_bronze_changes
+as
+select * from table_changes('retaildb.orders_bronze',2) 
+where order_id > 0 and
+customer_id > 0 and 
+order_status in ('PAYMENT_REVIEW','PROCESSING','CLOSED','SUSPECTED_FRAUD','COMPLETE','PENDING','CANCELLED','PENDING_PAYMENT')
+
+
+SELECT COUNT(*) from orders_bronze_changes
+63657
+
+
+%sql
+merge into retaildb.orders_silver tgt
+using orders_bronze_changes src on tgt.order_id = src.order_id
+when matched
+then
+update set tgt.order_status = src.order_status, tgt.customer_id = src.customer_id, tgt.modifiedon = CURRENT_TIMESTAMP()
+when not matched
+then
+insert(order_id, order_date, customer_id, order_status, createdon, modifiedon)
+values (order_id, order_date, customer_id, order_status, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())
+
+
+
+%sql
+insert overwrite table retaildb.orders_gold
+select customer_id, order_status, order_year, count(order_id) as num_orders
+from
+retaildb.orders_silver group by customer_id, order_status, order_year
+
+
+68883 - bronze
+63657 - silver
+48510 - gold
