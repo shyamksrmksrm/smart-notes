@@ -1,0 +1,48 @@
+git --version
+git clone https://github.com/manasa45/finance-project.git ( git clone <repository-link> )
+
+git (Gives a list of git commands)
+git --version (displays the git version installed successfully)
+git init (Initializing the empty repository)
+git status (Unstaged, Stage, Commit)
+git add <filename> (Staging specific files)
+git add . (Staging all the files that are changed)
+git commit -m “<message>” (Commit changes with appropriate message indicating the changes made)
+git push origin main (pushing the local commits to the remote central repository)
+
+git remote add origin <URL of the Blank Repository>
+
+git branch (displays all the existing branches)
+git branch -M <new-name> (Renaming the branch)
+git branch <branch-name> (Creates a new branch)
+git checkout <branch-name> (Switching branches.)
+git checkout -b <branch-name> (If the branch doesn’t exist, it will create the branch and switch to the newly created branch)
+git checkout -b <new-branch-name> <existing-branch-name> (Creates a new branch and takes the base code of the existing branch specified in the second parameter)
+git branch -d <branch-name> (Delete branch is possible only if the current branch is not the same branch to be deleted. You have to checkout to a different branch before deleting the current branch you are in)
+
+git pull origin main (After the changes are merged to the main branch in GitHub, the changes don’t reflect in your local git. In order to get your local in sync with the remote Github repository, execute the following)
+
+Scenario 1 : Unstaged Changes
+git restore <file-name>
+
+Scenario 2 : Staged Changes
+git restore --staged <file-name>
+git restore <file-name>
+
+Scenario 3 : Committed Changes
+git log (Displays the commit hash value. Use this hash value in the reset command)
+git reset <commit-hash-value> (Each commit is associated with a hash-value that uniquely identifies the commit)
+git reset head~1 (To revert back the latest commit - One commit back)
+git reset --hard <commit-hash-value> (reverts the changes completely without going through the unstaged step)
+
+git remote add upstream <upstream-URL> (Setting the upstream URL)
+git remote -v (Displays the information of where the origin and upstream is pointing)
+git pull upstream main (syncing the code with the upstream main branch)
+
+git stash command used to store/park the changes made in the code for later retrieval as you don’t want these changes to be effective at the moment.
+git stash clear used to clear the stash which permanently deletes the changes that are parked for later retrieval.
+git stash list displays the list of changes made and stashed one after the other.
+git stash pop will retrieve only the latest made change
+git stash save “<message>” will store the changes made by associating with a meaningful message for easier retrieval.
+git stash pop stash@{<stack-entry-number>} will retrieve the specific stashed entry
+git stash -u stashing the untracked files
